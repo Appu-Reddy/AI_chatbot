@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquare, X, Send, Bot, User } from 'lucide-react';
 
-const API_URL = 'http://localhost:8000/api/chat';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/chat';
 
 function Chatbot() {
   const [isOpen, setIsOpen] = useState(false);
