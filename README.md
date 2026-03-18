@@ -1,6 +1,6 @@
 # In-App Product Chatbot
 
---This was done as a part of a company recruitment process-
+( This was done as a part of a company recruitment process )
 
 A modern, full-stack chatbot application that provides intelligent in-app product guidance and helps users navigate application features. The chatbot understands user intents and provides step-by-step visual guidance for completing tasks.
 
