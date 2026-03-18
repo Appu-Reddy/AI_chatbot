@@ -1,0 +1,62 @@
+{
+  "create_report": [
+    {
+      "text": "Go to Reports tab",
+      "selector": "#reports-tab",
+      "media": null
+    },
+    {
+      "text": "Click Create Report",
+      "selector": "#create-report-btn",
+      "media": "https://media.giphy.com/media/l41lFw057lAJQMwg0/giphy.gif"
+    }
+  ],
+  "fill_form": [
+    {
+      "text": "Navigate to the Forms tab",
+      "selector": "#forms-tab",
+      "media": null
+    },
+    {
+      "text": "Fill in the required fields and click Submit",
+      "selector": "#submit-form-btn",
+      "media": "https://media.giphy.com/media/26AHONQ79FdWZhAI0/giphy.gif"
+    }
+  ],
+  "view_dashboard": [
+    {
+      "text": "You are currently on the Dashboard",
+      "selector": "#dashboard-tab",
+      "media": null
+    },
+    {
+      "text": "Here you can see an overview of your activity.",
+      "selector": "#dashboard-overview",
+      "media": null
+    }
+  ],
+  "provide_feedback": [
+    {
+      "text": "Navigate to the Give Feedback page in the sidebar",
+      "selector": "#feedback-tab",
+      "media": null
+    },
+    {
+      "text": "Select a star rating and tell us about your experience before clicking Submit",
+      "selector": "#submit-feedback-btn",
+      "media": "https://media.giphy.com/media/26AHONQ79FdWZhAI0/giphy.gif"
+    }
+  ],
+  "get_help": [
+    {
+      "text": "You can find answers on the Help Center page",
+      "selector": "#help-tab",
+      "media": null
+    },
+    {
+      "text": "If you still need help, you can use the Email Support button to contact us directly.",
+      "selector": null,
+      "media": null
+    }
+  ]
+}
