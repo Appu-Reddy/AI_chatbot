@@ -50,10 +50,7 @@ function Chatbot() {
         .querySelectorAll('script, style, noscript, svg, .chatbot-widget, [aria-hidden="true"]')
         .forEach((el) => el.remove());
 
-      const mainContent =
-        domClone.querySelector('main, .main-content, #main, .page-container') ||
-        domClone.querySelector('#app, #root') ||
-        domClone;
+      const mainContent = domClone.querySelector('#root') || domClone;
 
       return mainContent.innerHTML
         .replace(/\s+/g, ' ')
@@ -95,6 +92,9 @@ function Chatbot() {
         highlightElement(stepsWithSelectors[0].selector);
       }
 
+      // intent === 'general' → plain answer, no header
+      // intent === 'guided'  → DOM-based steps from Gemini, show header
+      // anything else        → predefined flow steps, show header
       const botMessage = {
         id: Date.now() + 1,
         sender: 'bot',

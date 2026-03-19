@@ -25,7 +25,7 @@
   ],
   "view_dashboard": [
     {
-      "text": "You are currently on the Dashboard",
+      "text": "Navigate to dashboard",
       "selector": "#dashboard-tab",
       "media": null
     },

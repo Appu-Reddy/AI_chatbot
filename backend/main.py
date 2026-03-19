@@ -1,11 +1,11 @@
 import json
 import os
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI # type: ignore
+from fastapi.middleware.cors import CORSMiddleware # type: ignore
 from pydantic import BaseModel
 from typing import List, Optional
-import google.generativeai as genai
-from dotenv import load_dotenv
+import google.generativeai as genai # type: ignore
+from dotenv import load_dotenv # type: ignore
 
 load_dotenv()
 
@@ -80,7 +80,6 @@ KEYWORD_INTENTS = {
 def fast_keyword_match(query: str) -> Optional[str]:
     q = query.lower().strip()
 
-    # Strip filler phrases (full phrases only, never single letters)
     for filler in [
         "how do i", "how to", "how can i", "how do you",
         "i want to", "i would like to", "i need to", "i wish to",
@@ -90,7 +89,6 @@ def fast_keyword_match(query: str) -> Optional[str]:
     ]:
         q = q.replace(filler, "")
 
-    # Strip small joining words with spaces (whole words only)
     for word in [" a ", " an ", " the ", " my ", " this ", " that "]:
         q = q.replace(word, " ")
 
@@ -118,21 +116,14 @@ CURRENT PAGE DOM (live HTML snapshot from the frontend):
 =========================================================
 {cleaned_dom}
 =========================================================
-Use this DOM as your ONLY source of truth for answering questions about
-what fields, buttons, labels, or content exist on the current page.
 """
     else:
-        dom_context = """
-NOTE: No DOM snapshot was provided for this request.
-If the user asks about specific UI elements, let them know you can only
-answer accurately when viewing the relevant page.
-"""
+        dom_context = "NOTE: No DOM snapshot provided."
 
     available_flows = get_flow_descriptions()
 
     prompt = f"""
-You are an in-app assistant for a web application. Your job is to understand
-what the user needs and respond appropriately.
+You are an in-app assistant for a web application.
 
 {dom_context}
 
@@ -143,29 +134,41 @@ USER'S MESSAGE: "{query}"
 
 INSTRUCTIONS:
 -------------
-A) If the user wants to PERFORM an action (navigate somewhere, create something,
-   fill something, give feedback, get help), respond with ONLY one of these exact
-   intent keys and nothing else:
+A) If the user wants to PERFORM a simple action (create report, fill form, view dashboard,
+   give feedback, get help), respond with ONLY one of these exact intent keys, nothing else:
        create_report
        fill_form
        view_dashboard
        provide_feedback
        get_help
 
-B) If the user is asking a QUESTION about specific UI elements, page content,
-   or what exists on the page, read the DOM snapshot above carefully and extract
-   the answer from it. Base your answer ONLY on what is actually present in the DOM.
-   Do NOT invent or assume field names that are not in the DOM.
+B) If the user is asking a DETAILED QUESTION about how to use a feature, what fields exist,
+   or needs step-by-step guidance based on the DOM — respond with a JSON array of steps.
+   Each step must have:
+     - "text": instruction for the user
+     - "selector": a CSS selector from the DOM that highlights the relevant element.
+                   Look for id, class, or element type in the DOM snapshot above.
+                   Use "#id-name" for IDs, ".class-name" for classes, or "button", "input" etc.
+                   Use "" if no specific element applies to this step.
 
-C) If the user is asking a GENERAL question about the app, give a short friendly
-   1-2 sentence answer based on the available action flows listed above.
+   Example format (respond with ONLY this JSON, no extra text):
+   [
+     {{"text": "Click the Forms tab in the sidebar", "selector": "#forms-tab"}},
+     {{"text": "You will see a Title input field", "selector": "#title"}},
+     {{"text": "Fill in the Description field", "selector": "#description"}},
+     {{"text": "Click the Submit Form button", "selector": "#submit-btn"}}
+   ]
+
+C) If the user is asking a GENERAL question about the app (what is this, what can I do),
+   give a short friendly plain text answer in 1-2 sentences.
 
 RULES:
-- Never return an intent key for informational questions.
-- Never add markdown, bullet points, asterisks, or any formatting, plain text only.
-- Never invent UI elements that are not in the DOM.
+- For type B questions, ALWAYS return a JSON array of steps, never plain text.
+- For type B, extract real selectors from the DOM — look at id and class attributes.
+- Never invent selectors that are not in the DOM.
+- Never add markdown formatting outside the JSON.
 - Never explain your reasoning.
-- Be concise. One short paragraph max.
+- Plain text only for type C answers.
 """
 
     print(f"\n[gemini] Sending query to Gemini: '{query}'")
@@ -178,11 +181,29 @@ RULES:
         print(f"[gemini] Raw response: '{raw}'")
 
         raw_lower = raw.lower()
+
+        # Check if it's a plain intent key
         for intent_key in flows_data.keys():
-            if intent_key in raw_lower:
+            if raw_lower.strip() == intent_key:
                 print(f"[gemini] Detected intent: {intent_key}")
                 return {"type": "intent", "value": intent_key}
 
+        # Check if it's a JSON steps array
+        if raw.startswith("["):
+            try:
+                clean = raw
+                if "```" in clean:
+                    clean = clean.split("```")[1]
+                    if clean.startswith("json"):
+                        clean = clean[4:]
+                steps = json.loads(clean.strip())
+                if isinstance(steps, list):
+                    print(f"[gemini] Detected structured steps: {len(steps)} steps")
+                    return {"type": "steps", "value": steps}
+            except json.JSONDecodeError:
+                print(f"[gemini] Failed to parse JSON steps")
+
+        # Plain text answer
         print(f"[gemini] Returning as direct answer")
         return {"type": "answer", "value": raw}
 
@@ -193,10 +214,12 @@ RULES:
             "value": "Sorry, I ran into an issue processing your request. Please try again."
         }
 
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat_endpoint(req: ChatRequest):
     result = detect_intent_with_gemini(query=req.query, dom=req.dom)
 
+    # Predefined flow intent
     if result["type"] == "intent":
         intent = result["value"]
         if intent in flows_data:
@@ -210,6 +233,19 @@ async def chat_endpoint(req: ChatRequest):
             ]
             return ChatResponse(intent=intent, steps=steps)
 
+    # Gemini-generated structured steps from DOM
+    if result["type"] == "steps":
+        steps = [
+            Step(
+                text=s.get('text', ''),
+                selector=s.get('selector') or '',
+                media=None
+            )
+            for s in result["value"]
+        ]
+        return ChatResponse(intent="guided", steps=steps)
+
+    # Plain text answer
     return ChatResponse(
         intent="general",
         steps=[
@@ -220,6 +256,7 @@ async def chat_endpoint(req: ChatRequest):
             )
         ]
     )
+
 
 @app.get("/api/health")
 async def health_check():
@@ -234,6 +271,7 @@ async def health_check():
             "status": "error",
             "message": f"Gemini API error: {str(e)}"
         }
+
 
 @app.get("/api/debug")
 async def debug_intent(query: str = "what fields does the form have?", dom: Optional[str] = None):
