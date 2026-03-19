@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 import google.generativeai as genai # type: ignore
 from dotenv import load_dotenv # type: ignore
+import re
 
 load_dotenv()
 
@@ -93,7 +94,6 @@ def fast_keyword_match(query: str) -> Optional[str]:
         q = q.replace(word, " ")
 
     q = " ".join(q.split())
-    print(f"[keyword] Normalized query: '{q}'")
 
     for intent, phrases in KEYWORD_INTENTS.items():
         for phrase in phrases:
@@ -171,14 +171,12 @@ RULES:
 - Plain text only for type C answers.
 """
 
-    print(f"\n[gemini] Sending query to Gemini: '{query}'")
     if dom:
         print(f"[gemini] DOM snapshot length: {len(dom)} chars")
 
     try:
         response = model.generate_content(prompt)
         raw = response.text.strip()
-        print(f"[gemini] Raw response: '{raw}'")
 
         raw_lower = raw.lower()
 
@@ -189,22 +187,23 @@ RULES:
                 return {"type": "intent", "value": intent_key}
 
         # Check if it's a JSON steps array
-        if raw.startswith("["):
+        # Strip markdown code fences anywhere in the response
+        clean = raw
+        if "```" in clean:
+            # Remove opening fence (```json or ```)
+            clean = re.sub(r"```json\s*", "", clean)
+            clean = re.sub(r"```\s*", "", clean)
+            clean = clean.strip()
+
+        if clean.startswith("["):
             try:
-                clean = raw
-                if "```" in clean:
-                    clean = clean.split("```")[1]
-                    if clean.startswith("json"):
-                        clean = clean[4:]
-                steps = json.loads(clean.strip())
+                steps = json.loads(clean)
                 if isinstance(steps, list):
-                    print(f"[gemini] Detected structured steps: {len(steps)} steps")
                     return {"type": "steps", "value": steps}
             except json.JSONDecodeError:
                 print(f"[gemini] Failed to parse JSON steps")
 
         # Plain text answer
-        print(f"[gemini] Returning as direct answer")
         return {"type": "answer", "value": raw}
 
     except Exception as e:
@@ -271,21 +270,3 @@ async def health_check():
             "status": "error",
             "message": f"Gemini API error: {str(e)}"
         }
-
-
-@app.get("/api/debug")
-async def debug_intent(query: str = "what fields does the form have?", dom: Optional[str] = None):
-    print("\n" + "=" * 60)
-    print(f"DEBUG query: '{query}'")
-    print("=" * 60)
-
-    result = detect_intent_with_gemini(query=query, dom=dom)
-
-    print(f"Result: {result}")
-    print("=" * 60 + "\n")
-
-    return {
-        "query": query,
-        "result": result,
-        "valid_flows": list(flows_data.keys())
-    }
